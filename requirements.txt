@@ -1,5 +1,16 @@
 fastapi[all]
 
+
+streamlit==1.32.1
 yfinance==0.2.36
-finance-datareader==0.9.90
+matplotlib==3.5.2
+pandas==1.4.2
 firebase-admin==6.5.0
+fastapi==0.110.0
+pydantic==2.6.3
+uvicorn==0.17.6
+pydeck==0.8.1b0
+finance-datareader==0.9.90
+numpy==1.24.0
+fastapi-cache==0.1.0
+fastapi-cache2==0.2.1
