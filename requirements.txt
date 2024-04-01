@@ -2,3 +2,4 @@ fastapi[all]
 
 yfinance==0.2.36
 finance-datareader==0.9.90
+firebase-admin==6.5.0
