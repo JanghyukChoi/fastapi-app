@@ -5,6 +5,8 @@ from typing import Dict
 from pydantic import BaseModel
 import yfinance as yf
 from datetime import datetime
+import os
+import json
 import pandas as pd
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -14,7 +16,16 @@ from fastapi_cache.backends.redis import RedisBackend
 import aioredis
 import FinanceDataReader as fdr
 # Firebase Admin 초기화
-cred = credentials.Certificate("credentials.json")  # Firestore credentials
+# 환경 변수에서 인증 정보 불러오기
+firebase_credentials = os.getenv('FIREBASE_CREDENTIALS')
+
+# 문자열로 된 인증 정보를 JSON 객체로 변환
+cred_dict = json.loads(firebase_credentials)
+
+# Firebase 인증 정보로 변환
+cred = credentials.Certificate(cred_dict)
+
+# Firebase 앱 초기화
 firebase_admin.initialize_app(cred)
 
 # Firestore 클라이언트
