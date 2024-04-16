@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from fastapi_cache import FastAPICache
 from fastapi_cache.backends.redis import RedisBackend
 import aioredis
+import json
 import FinanceDataReader as fdr
 # Firebase Admin 초기화
 firebase_credentials = os.getenv('FIREBASE_CREDENTIALS')
