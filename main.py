@@ -6,6 +6,7 @@ from pydantic import BaseModel
 import yfinance as yf
 from datetime import datetime
 import pandas as pd
+import os
 import firebase_admin
 from datetime import timedelta
 from firebase_admin import credentials, firestore
