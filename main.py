@@ -98,16 +98,6 @@ async def get_stock_info(symbol: str, country: str):
     current_close = float(price_data.iloc[-1])
     return_rate = ((current_close - recommendation_close) / recommendation_close) * 100
 
-    # Update the ing status if one month has passed
-    if today >= one_month_later:
-        target_return = float(stock_info['target_return'])
-        if return_rate >= target_return:
-            stock_info['ing'] = '성공'
-        else:
-            stock_info['ing'] = '실패'
-        
-        # Update the document in Firestore
-        await update_stock_in_firestore(symbol, country, stock_info)
 
     return JSONResponse(content={
         "symbol": symbol,
