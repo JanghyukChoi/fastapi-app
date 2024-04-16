@@ -5,10 +5,9 @@ from typing import Dict
 from pydantic import BaseModel
 import yfinance as yf
 from datetime import datetime
-import os
-import json
 import pandas as pd
 import firebase_admin
+from datetime import timedelta
 from firebase_admin import credentials, firestore
 from fastapi.responses import JSONResponse
 from fastapi_cache import FastAPICache
@@ -16,16 +15,7 @@ from fastapi_cache.backends.redis import RedisBackend
 import aioredis
 import FinanceDataReader as fdr
 # Firebase Admin 초기화
-# 환경 변수에서 인증 정보 불러오기
-firebase_credentials = os.getenv('FIREBASE_CREDENTIALS')
-
-# 문자열로 된 인증 정보를 JSON 객체로 변환
-cred_dict = json.loads(firebase_credentials)
-
-# Firebase 인증 정보로 변환
-cred = credentials.Certificate(cred_dict)
-
-# Firebase 앱 초기화
+cred = credentials.Certificate("credentials.json")  # Firestore credentials
 firebase_admin.initialize_app(cred)
 
 # Firestore 클라이언트
@@ -53,6 +43,7 @@ async def startup():
 
 async def get_stock_from_firestore(symbol: str, country: str) -> Dict:
     """Firestore에서 주식 정보 조회"""
+                       
     collection_name = f'stockRecommendations{country.upper()}'  # 컬렉션 이름 결정
     doc_ref = db.collection(collection_name).document(symbol)
     doc = doc_ref.get()
@@ -78,6 +69,8 @@ async def list_stocks(country: str):
 @app.get("/stocks/{country}/{symbol}")
 async def get_stock_info(symbol: str, country: str):
     stock_info = await get_stock_from_firestore(symbol, country)
+
+    stock_in = ""
     if not stock_info:
         raise HTTPException(status_code=404, detail="Stock not found")
 
@@ -93,10 +86,33 @@ async def get_stock_info(symbol: str, country: str):
     if price_data.empty:
         raise HTTPException(status_code=404, detail="No historical data available")
 
+
+
     price_data.dropna(how="any", inplace=True)
     recommendation_close = float(price_data.iloc[0])
     current_close = float(price_data.iloc[-1])
     return_rate = ((current_close - recommendation_close) / recommendation_close) * 100
+
+    #Update the ing status if one month has passed
+    if today >= one_month_later:
+        target_return = float(stock_info['target_return'])
+        if return_rate >= target_return:
+            stock_info['ing'] = '성공'
+        else:
+            stock_info['ing'] = '실패'
+        
+        # Update the document in Firestore
+        await update_stock_in_firestore(symbol, country, stock_info)
+
+    if stock_info['ing'] == '성공':
+        return_rate = str('+') + str(stock_info['target_return']) + str('%')
+
+    elif stock_info['ing'] == '실패':
+        return_rate = str('-') + str(float(stock_info['target_return']) / 2) + str('%')
+
+    else: 
+        return_rate =  str('+') + str(stock_info['target_return']) + str('%')
+
 
 
     return JSONResponse(content={
