@@ -115,12 +115,12 @@ async def get_stock_info(symbol: str, country: str):
         await update_stock_in_firestore(symbol, country, stock_info)
 
     if stock_info['ing'] == '성공':
-        return_rate = str('+') + str(stock_info['target_return'])
+        return_rate = int(str('+') + str(stock_info['target_return']))
     elif stock_info['ing'] == '실패':
-        return_rate = str('-') + str(float(stock_info['target_return']) / 2) 
+        return_rate = int(str('-') + str(float(stock_info['target_return']) / 2) )
 
     else: 
-        return_rate =  str('+') + str(stock_info['target_return']) 
+        return_rate =  int(str('+') + str(stock_info['target_return']))
 
 
 
