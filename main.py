@@ -103,6 +103,14 @@ async def get_stock_info(symbol: str, country: str):
     current_close = float(price_data.iloc[-1])
     return_rate = ((current_close - recommendation_close) / recommendation_close) * 100
 
+
+    price_series   = pd.Series(price_data)
+
+    price_series.index = price_series.index.strftime('%Y-%m-%d')
+
+    # Convert to dictionary if needed
+    price_dict = price_series.to_dict()
+
     #Update the ing status if one month has passed
     if today >= one_month_later:
         target_return = float(stock_info['target_return'])
@@ -117,10 +125,11 @@ async def get_stock_info(symbol: str, country: str):
     if stock_info['ing'] == '성공':
         return_rate = int(str('+') + str(stock_info['target_return']))
     elif stock_info['ing'] == '실패':
-        return_rate = int(str('-') + str(float(stock_info['target_return']) / 2) )
+        return_rate = float(str('-') + str(float(stock_info['target_return']) / 2) )
 
     else: 
         return_rate =  int(str('+') + str(stock_info['target_return']))
+
 
 
     return JSONResponse(content={
@@ -133,7 +142,7 @@ async def get_stock_info(symbol: str, country: str):
         "recommendation_date": stock_info['recommendation_date'],
         "ing": stock_info['ing'],
         "country": country,
-        "price" : price_data
+        "price" : price_dict
     })
 
 async def update_stock_in_firestore(symbol: str, country: str, updated_info: Dict):
