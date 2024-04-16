@@ -123,7 +123,6 @@ async def get_stock_info(symbol: str, country: str):
         return_rate =  int(str('+') + str(stock_info['target_return']))
 
 
-
     return JSONResponse(content={
         "symbol": symbol,
         "last_close": current_close,
@@ -133,7 +132,8 @@ async def get_stock_info(symbol: str, country: str):
         "target_return": stock_info['target_return'],
         "recommendation_date": stock_info['recommendation_date'],
         "ing": stock_info['ing'],
-        "country": country
+        "country": country,
+        "price" : price_data
     })
 
 async def update_stock_in_firestore(symbol: str, country: str, updated_info: Dict):
