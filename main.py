@@ -176,4 +176,17 @@ async def get_stock_info(symbol: str, country: str):
         "symbol": symbol,
         "last_close": current_close,
         "recommendation_close": recommendation_close,
-        "return_rate": 
+        "return_rate": return_rate,
+        "recommendation_reason": stock_info['recommendation_reason'],
+        "target_return": stock_info['target_return'],
+        "recommendation_date": stock_info['recommendation_date'],
+        "ing": stock_info['ing'],
+        "country": country,
+        "price" : price_dict,
+    })
+
+async def update_stock_in_firestore(symbol: str, country: str, updated_info: Dict):
+    """Update stock information in Firestore."""
+    collection_name = f'stockRecommendations{country.upper()}'
+    doc_ref = db.collection(collection_name).document(symbol)
+    doc_ref.set(updated_info)  # This overwrites the document with the updated data.
