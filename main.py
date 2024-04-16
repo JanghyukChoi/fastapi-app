@@ -81,35 +81,36 @@ async def get_stock_info(symbol: str, country: str):
     if not stock_info:
         raise HTTPException(status_code=404, detail="Stock not found")
 
-    recommendation_date = datetime.strptime(
-        stock_info['recommendation_date'], "%Y-%m-%d")
-    # 데이터 확인을 위해 종료 날짜를 시작 날짜로부터 5일 후로 설정
-    end_date = recommendation_date + pd.Timedelta(days=5)
+    recommendation_date = datetime.strptime(stock_info['recommendation_date'], "%Y-%m-%d")
+    today = datetime.today()
+    one_month_later = recommendation_date + timedelta(days=30)
 
     if country == 'US':
-        temp = yf.download(symbol, start=recommendation_date.strftime(
-            "%Y-%m-%d"))['Close']
+        price_data = yf.download(symbol, start=recommendation_date.strftime("%Y-%m-%d"), end=today.strftime("%Y-%m-%d"))['Close']
     else:
-        temp = fdr.DataReader(
-            symbol, start=recommendation_date)['Close']
+        price_data = fdr.DataReader(symbol, start=recommendation_date, end=today)['Close']
 
-    if temp.empty:
-        raise HTTPException(
-            status_code=404, detail="No historical data available")
+    if price_data.empty:
+        raise HTTPException(status_code=404, detail="No historical data available")
 
-    temp.dropna(how="any", inplace=True)
+    price_data.dropna(how="any", inplace=True)
+    recommendation_close = float(price_data.iloc[0])
+    current_close = float(price_data.iloc[-1])
+    return_rate = ((current_close - recommendation_close) / recommendation_close) * 100
 
-    # 첫 번째와 마지막 close 값에 대한 안전한 접근을 위해 .iloc 사용
-    recommendation_close = float(temp.iloc[0])
-    current_close = float(temp.iloc[-1])
-    return_rate = ((current_close - recommendation_close) /
-                   recommendation_close) * 100
-
-    price_dict = {date.strftime(
-        "%Y-%m-%d"): price for date, price in temp.items()}
+    # Update the ing status if one month has passed
+    if today >= one_month_later:
+        target_return = float(stock_info['target_return'])
+        if return_rate >= target_return:
+            stock_info['ing'] = '성공'
+        else:
+            stock_info['ing'] = '실패'
+        
+        # Update the document in Firestore
+        await update_stock_in_firestore(symbol, country, stock_info)
 
     return JSONResponse(content={
-        "symbol": stock_info['company_name'],
+        "symbol": symbol,
         "last_close": current_close,
         "recommendation_close": recommendation_close,
         "return_rate": return_rate,
@@ -117,6 +118,11 @@ async def get_stock_info(symbol: str, country: str):
         "target_return": stock_info['target_return'],
         "recommendation_date": stock_info['recommendation_date'],
         "ing": stock_info['ing'],
-        "country": country,
-        "price": price_dict
+        "country": country
     })
+
+async def update_stock_in_firestore(symbol: str, country: str, updated_info: Dict):
+    """Update stock information in Firestore."""
+    collection_name = f'stockRecommendations{country.upper()}'
+    doc_ref = db.collection(collection_name).document(symbol)
+    doc_ref.set(updated_info)  # This overwrites the document with the updated data.
