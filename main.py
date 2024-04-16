@@ -34,6 +34,10 @@ db = firestore.client()
 
 app = FastAPI()
 
+success = 0
+fail = 0
+
+
 class Stock(BaseModel):
     symbol: str
     recommendation_reason: str
@@ -61,6 +65,24 @@ async def get_stock_from_firestore(symbol: str, country: str) -> Dict:
         return doc.to_dict()
     else:
         return None
+    
+@app.get("/stocks/success/")
+async def success_rate():
+    statuses = {'진행중': 0, '성공': 0, '실패': 0}
+    # 'stockRecommendationsUS'와 'stockRecommendationsKR' 컬렉션에서 데이터 조회
+    collections = ['stockRecommendationsUS', 'stockRecommendationsKR']
+    
+    for collection in collections:
+        # 각 컬렉션에서 문서 스트림 가져오기
+        docs = db.collection(collection).stream()
+        for doc in docs:
+            data = doc.to_dict()
+            if 'ing' in data:
+                status = data['ing']
+                if status in statuses:
+                    statuses[status] += 1
+    
+    return JSONResponse(content=statuses)
 
 
 @app.get("/stocks/{country}")
@@ -74,6 +96,23 @@ async def list_stocks(country: str):
         stocks[doc.id] = doc.to_dict()
 
     return JSONResponse(content=stocks)
+
+async def count_stock_statuses():
+    statuses = {'진행중': 0, '성공': 0, '실패': 0}
+    # 'stockRecommendationsUS'와 'stockRecommendationsKR' 컬렉션에서 데이터 조회
+    collections = ['stockRecommendationsUS', 'stockRecommendationsKR']
+    
+    for collection in collections:
+        # 각 컬렉션에서 문서 스트림 가져오기
+        docs = db.collection(collection).stream()
+        for doc in docs:
+            data = doc.to_dict()
+            if 'ing' in data:
+                status = data['ing']
+                if status in statuses:
+                    statuses[status] += 1
+    
+    return statuses
 
 
 @app.get("/stocks/{country}/{symbol}")
@@ -129,6 +168,7 @@ async def get_stock_info(symbol: str, country: str):
 
     else: 
         return_rate =  int(str('+') + str(stock_info['target_return']))
+    
 
 
 
@@ -136,17 +176,4 @@ async def get_stock_info(symbol: str, country: str):
         "symbol": symbol,
         "last_close": current_close,
         "recommendation_close": recommendation_close,
-        "return_rate": return_rate,
-        "recommendation_reason": stock_info['recommendation_reason'],
-        "target_return": stock_info['target_return'],
-        "recommendation_date": stock_info['recommendation_date'],
-        "ing": stock_info['ing'],
-        "country": country,
-        "price" : price_dict
-    })
-
-async def update_stock_in_firestore(symbol: str, country: str, updated_info: Dict):
-    """Update stock information in Firestore."""
-    collection_name = f'stockRecommendations{country.upper()}'
-    doc_ref = db.collection(collection_name).document(symbol)
-    doc_ref.set(updated_info)  # This overwrites the document with the updated data.
+        "return_rate": 
