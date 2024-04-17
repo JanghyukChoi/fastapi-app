@@ -118,48 +118,58 @@ async def count_stock_statuses():
 @app.get("/stocks/{country}/{symbol}")
 async def get_stock_info(symbol: str, country: str):
     stock_info = await get_stock_from_firestore(symbol, country)
-
-    stock_in = ""
     if not stock_info:
         raise HTTPException(status_code=404, detail="Stock not found")
 
     recommendation_date = datetime.strptime(stock_info['recommendation_date'], "%Y-%m-%d")
-    today = datetime.today()
     one_month_later = recommendation_date + timedelta(days=30)
+    today = datetime.today()
 
     if country == 'US':
-        price_data = yf.download(symbol, start=recommendation_date.strftime("%Y-%m-%d"), end=today.strftime("%Y-%m-%d"))['Close']
+        price_data = yf.download(symbol, start=recommendation_date.strftime("%Y-%m-%d"), end=one_month_later.strftime("%Y-%m-%d"))
     else:
-        price_data = fdr.DataReader(symbol, start=recommendation_date, end=today)['Close']
+        price_data = fdr.DataReader(symbol, start=recommendation_date, end=one_month_later)
 
     if price_data.empty:
         raise HTTPException(status_code=404, detail="No historical data available")
-
-
+    
 
     price_data.dropna(how="any", inplace=True)
-    recommendation_close = float(price_data.iloc[0])
-    current_close = float(price_data.iloc[-1])
+    target_return = float(stock_info['target_return'])
+    stop_loss = float(str('-') + str(float(stock_info['target_return']) /2))
+    recommendation_close = price_data['Close'].iloc[0]
+
+    success_date = None
+
+    # 수익률 계산
+    price_data['Return'] = (price_data['Close'] - recommendation_close) / recommendation_close * 100
+
+    # 목표 수익률 또는 손절률에 도달하는 첫 날짜를 찾기
+    for date, row in price_data.iterrows():
+        if row['Return'] >= target_return:
+            stock_info['ing'] = '성공'
+            break
+        elif row['Return'] <= stop_loss:
+            stock_info['ing'] = '실패'
+            break
+        else:
+            stock_info['ing'] = '진행중'
+
+    await update_stock_in_firestore(symbol, country, stock_info)
+
+    current_close = price_data['Close'].iloc[-1]
     return_rate = ((current_close - recommendation_close) / recommendation_close) * 100
 
+    print('Current Close is : ' )
+    print(current_close)
 
-    price_series   = pd.Series(price_data)
+    price_series   = pd.Series(price_data['Close'])
 
     price_series.index = price_series.index.strftime('%Y-%m-%d')
 
     # Convert to dictionary if needed
     price_dict = price_series.to_dict()
 
-    #Update the ing status if one month has passed
-    if today >= one_month_later:
-        target_return = float(stock_info['target_return'])
-        if return_rate >= target_return:
-            stock_info['ing'] = '성공'
-        else:
-            stock_info['ing'] = '실패'
-        
-        # Update the document in Firestore
-        await update_stock_in_firestore(symbol, country, stock_info)
 
     if stock_info['ing'] == '성공':
         return_rate = int(str('+') + str(stock_info['target_return']))
@@ -169,13 +179,10 @@ async def get_stock_info(symbol: str, country: str):
     else: 
         return_rate =  int(str('+') + str(stock_info['target_return']))
     
-
-
-
     return JSONResponse(content={
         "symbol": symbol,
-        "last_close": current_close,
-        "recommendation_close": recommendation_close,
+        "last_close": str(current_close),
+        "recommendation_close": str(recommendation_close),
         "return_rate": return_rate,
         "recommendation_reason": stock_info['recommendation_reason'],
         "target_return": stock_info['target_return'],
