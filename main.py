@@ -126,20 +126,17 @@ async def get_stock_info(symbol: str, country: str):
     today = datetime.today()
 
     if country == 'US':
-        price_data = yf.download(symbol, start=recommendation_date.strftime("%Y-%m-%d"), end=one_month_later.strftime("%Y-%m-%d"))
+        price_data = yf.download(symbol, start=recommendation_date.strftime("%Y-%m-%d"), end=today.strftime("%Y-%m-%d"))
     else:
-        price_data = fdr.DataReader(symbol, start=recommendation_date, end=one_month_later)
+        price_data = fdr.DataReader(symbol, start=recommendation_date, end=today)
 
     if price_data.empty:
         raise HTTPException(status_code=404, detail="No historical data available")
-    
 
     price_data.dropna(how="any", inplace=True)
     target_return = float(stock_info['target_return'])
-    stop_loss = float(str('-') + str(float(stock_info['target_return']) /2))
+    stop_loss = float('-' + str(float(stock_info['target_return']) / 2))
     recommendation_close = price_data['Close'].iloc[0]
-
-    success_date = None
 
     # 수익률 계산
     price_data['Return'] = (price_data['Close'] - recommendation_close) / recommendation_close * 100
@@ -152,6 +149,12 @@ async def get_stock_info(symbol: str, country: str):
         elif row['Return'] <= stop_loss:
             stock_info['ing'] = '실패'
             break
+    else:
+        # If after a month or today's date (whichever is earlier) no goal is achieved
+        check_date = min(one_month_later, today)
+        last_available_date = price_data.index[-1]
+        if last_available_date >= check_date:
+            stock_info['ing'] = '실패'
         else:
             stock_info['ing'] = '진행중'
 
