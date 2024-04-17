@@ -181,8 +181,8 @@ async def get_stock_info(symbol: str, country: str):
     
     return JSONResponse(content={
         "symbol": symbol,
-        "last_close": current_close,
-        "recommendation_close": recommendation_close,
+        "last_close": float(current_close),
+        "recommendation_close": float(recommendation_close),
         "return_rate": return_rate,
         "recommendation_reason": stock_info['recommendation_reason'],
         "target_return": stock_info['target_return'],
