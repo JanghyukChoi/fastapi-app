@@ -181,8 +181,8 @@ async def get_stock_info(symbol: str, country: str):
     
     return JSONResponse(content={
         "symbol": symbol,
-        "last_close": str(current_close),
-        "recommendation_close": str(recommendation_close),
+        "last_close": current_close,
+        "recommendation_close": recommendation_close,
         "return_rate": return_rate,
         "recommendation_reason": stock_info['recommendation_reason'],
         "target_return": stock_info['target_return'],
@@ -191,7 +191,6 @@ async def get_stock_info(symbol: str, country: str):
         "country": country,
         "price" : price_dict,
     })
-
 async def update_stock_in_firestore(symbol: str, country: str, updated_info: Dict):
     """Update stock information in Firestore."""
     collection_name = f'stockRecommendations{country.upper()}'
