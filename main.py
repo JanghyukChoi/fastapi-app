@@ -179,8 +179,6 @@ async def get_stock_info(symbol: str, country: str):
     elif stock_info['ing'] == '실패':
         return_rate = float(str('-') + str(float(stock_info['target_return']) / 2) )
 
-    else: 
-        return_rate =  int(str('+') + str(return_rate))
     
     return JSONResponse(content={
         "symbol": symbol,
