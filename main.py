@@ -180,7 +180,7 @@ async def get_stock_info(symbol: str, country: str):
         return_rate = float(str('-') + str(float(stock_info['target_return']) / 2) )
 
     else: 
-        return_rate =  int(str('+') + str(stock_info['target_return']))
+        return_rate =  int(str('+') + str(return_rate))
     
     return JSONResponse(content={
         "symbol": symbol,
