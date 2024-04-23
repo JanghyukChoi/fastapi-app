@@ -91,15 +91,22 @@ async def success_rate():
 results = {}
 
 # 데이터를 results에 저장하는 함수 예시 (이미 존재하는 로직을 이용하여 results를 업데이트)
-def calculate_financial_metrics(symbol):
+async def calculate_financial_metrics(symbol):
         # Define stock codes and date range
     stock_codes = [symbol]
     start_date = '2023-01-01'  # Start date for a 3-year period
     end_date = datetime.now().strftime('%Y-%m-%d')
     
+        # Determine the market benchmark based on the symbol format
+    if symbol.isdigit() and len(symbol) == 6:
+        market_index = 'KS11'  # KOSPI index for Korean stocks
+    else:
+        market_index = '^IXIC'  # NASDAQ Composite Index for others
+    
+
     # Fetch stock data
     stocks = {code: fdr.DataReader(code, start_date, end_date) for code in stock_codes}
-    kospi = fdr.DataReader('KS11', start_date, end_date)  # KOSPI as the market benchmark
+    kospi = fdr.DataReader(market_index, start_date, end_date)  # KOSPI as the marke       t benchmark
     
     # Calculate daily returns
     daily_returns = {code: stocks[code]['Close'].pct_change().dropna() for code in stock_codes}
@@ -142,7 +149,7 @@ def calculate_financial_metrics(symbol):
         sharpe_ratio = (mean_returns - risk_free_rate) / std_dev if std_dev != 0 else np.nan
     
         # Store in results
-        results[code] = {
+        results = {
             'Sortino Ratio': sortino_ratio,
             'Beta': beta,
             'Alpha': alpha,
@@ -191,7 +198,7 @@ async def get_stock_info(symbol: str, country: str):
     if not stock_info:
         raise HTTPException(status_code=404, detail="Stock not found")
 
-    financial_metrics = calculate_financial_metrics(symbol)
+    financial_metrics = await  calculate_financial_metrics(symbol)
 
     recommendation_date = datetime.strptime(stock_info['recommendation_date'], "%Y-%m-%d")
     one_month_later = recommendation_date + timedelta(days=30)
