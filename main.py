@@ -106,7 +106,10 @@ async def calculate_financial_metrics(symbol):
 
     # Fetch stock data
     stocks = {code: fdr.DataReader(code, start_date, end_date) for code in stock_codes}
-    kospi = fdr.DataReader(market_index, start_date, end_date)  # KOSPI as the marke       t benchmark
+    
+    actual_start_date = stocks.index.min().strftime('%Y-%m-%d') if stocks.index.min() > pd.to_datetime(start_date) else start_date
+
+    kospi = fdr.DataReader(market_index, actual_start_date, end_date)  # KOSPI as the marke       t benchmark
     
     # Calculate daily returns
     daily_returns = {code: stocks[code]['Close'].pct_change().dropna() for code in stock_codes}
