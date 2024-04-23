@@ -16,6 +16,8 @@ from fastapi_cache.backends.redis import RedisBackend
 import aioredis
 import json
 import FinanceDataReader as fdr
+import numpy as np
+
 # Firebase Admin 초기화
 firebase_credentials = os.getenv('FIREBASE_CREDENTIALS')
 
@@ -85,6 +87,74 @@ async def success_rate():
     return JSONResponse(content=statuses)
 
 
+# 최상단에 글로벌 변수 선언
+results = {}
+
+# 데이터를 results에 저장하는 함수 예시 (이미 존재하는 로직을 이용하여 results를 업데이트)
+def calculate_financial_metrics(symbol):
+        # Define stock codes and date range
+    stock_codes = [symbol]
+    start_date = '2023-01-01'  # Start date for a 3-year period
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    
+    # Fetch stock data
+    stocks = {code: fdr.DataReader(code, start_date, end_date) for code in stock_codes}
+    kospi = fdr.DataReader('KS11', start_date, end_date)  # KOSPI as the market benchmark
+    
+    # Calculate daily returns
+    daily_returns = {code: stocks[code]['Close'].pct_change().dropna() for code in stock_codes}
+    market_returns = kospi['Close'].pct_change().dropna()
+    
+    # Metrics calculation
+    results = {}
+    risk_free_rate = 0.03  # Assuming an annual risk-free rate of 2%
+    for code in stock_codes:
+        # Mean returns and volatility (annualized)
+        mean_returns = daily_returns[code].mean() * 252
+        std_dev = daily_returns[code].std() * np.sqrt(252)
+        downside_risk = daily_returns[code][daily_returns[code] < 0].std() * np.sqrt(252)
+    
+        # Sortino Ratio
+        sortino_ratio = (mean_returns - risk_free_rate) / downside_risk if downside_risk != 0 else np.nan
+    
+        # Beta
+        covariance = np.cov(daily_returns[code], market_returns)[0][1]
+        beta = covariance / np.var(market_returns)
+    
+        # Alpha (using CAPM: Ri = Rf + beta * (Rm - Rf))
+        market_mean_return = market_returns.mean() * 252
+        alpha = mean_returns - (risk_free_rate + beta * (market_mean_return - risk_free_rate))
+    
+        # Information Ratio
+        tracking_error = np.std(daily_returns[code] - market_returns) * np.sqrt(252)
+        information_ratio = (mean_returns - market_mean_return) / tracking_error if tracking_error != 0 else np.nan
+    
+        # Maximum Drawdown
+        cum_returns = (1 + daily_returns[code]).cumprod()
+        peak = cum_returns.cummax()
+        drawdown = (cum_returns - peak) / peak
+        max_drawdown = drawdown.min()
+    
+        # Treynor Ratio
+        treynor_ratio = (mean_returns - risk_free_rate) / beta if beta != 0 else np.nan
+    
+        # Sharpe Ratio
+        sharpe_ratio = (mean_returns - risk_free_rate) / std_dev if std_dev != 0 else np.nan
+    
+        # Store in results
+        results[code] = {
+            'Sortino Ratio': sortino_ratio,
+            'Beta': beta,
+            'Alpha': alpha,
+            'Information Ratio': information_ratio,
+            'Maximum Drawdown': max_drawdown,
+            'Treynor Ratio': treynor_ratio,
+            'Sharpe Ratio': sharpe_ratio
+        }
+
+        return results
+
+
 @app.get("/stocks/{country}")
 async def list_stocks(country: str):
     """Firestore에서 모든 주식 종목과 기본 정보 반환"""
@@ -120,6 +190,8 @@ async def get_stock_info(symbol: str, country: str):
     stock_info = await get_stock_from_firestore(symbol, country)
     if not stock_info:
         raise HTTPException(status_code=404, detail="Stock not found")
+
+    financial_metrics = calculate_financial_metrics(symbol)
 
     recommendation_date = datetime.strptime(stock_info['recommendation_date'], "%Y-%m-%d")
     one_month_later = recommendation_date + timedelta(days=30)
@@ -191,7 +263,9 @@ async def get_stock_info(symbol: str, country: str):
         "ing": stock_info['ing'],
         "country": country,
         "price" : price_dict,
+         "financial_metrics": financial_metrics  # 추가된 부분
     })
+    
 async def update_stock_in_firestore(symbol: str, country: str, updated_info: Dict):
     """Update stock information in Firestore."""
     collection_name = f'stockRecommendations{country.upper()}'
