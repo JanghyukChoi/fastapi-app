@@ -90,79 +90,64 @@ async def success_rate():
 # 최상단에 글로벌 변수 선언
 results = {}
 
-# 데이터를 results에 저장하는 함수 예시 (이미 존재하는 로직을 이용하여 results를 업데이트)
 async def calculate_financial_metrics(symbol):
-        # Define stock codes and date range
+    # Define stock codes and date range
     stock_codes = [symbol]
     start_date = '2023-01-01'  # Start date for a 3-year period
     end_date = datetime.now().strftime('%Y-%m-%d')
-    
-        # Determine the market benchmark based on the symbol format
+
+    # Determine the market benchmark based on the symbol format
     if symbol.isdigit() and len(symbol) == 6:
         market_index = 'KS11'  # KOSPI index for Korean stocks
     else:
         market_index = '^IXIC'  # NASDAQ Composite Index for others
-    
 
     # Fetch stock data
     stocks = {code: fdr.DataReader(code, start_date, end_date) for code in stock_codes}
-    
-    actual_start_date = stocks.index.min().strftime('%Y-%m-%d') if stocks.index.min() > pd.to_datetime(start_date) else start_date
+    market_returns = fdr.DataReader(market_index, start_date, end_date)['Close'].pct_change().dropna()
 
-    kospi = fdr.DataReader(market_index, actual_start_date, end_date)  # KOSPI as the marke       t benchmark
-    
-    # Calculate daily returns
-    daily_returns = {code: stocks[code]['Close'].pct_change().dropna() for code in stock_codes}
-    market_returns = kospi['Close'].pct_change().dropna()
-    
-    # Metrics calculation
+    # Calculate daily returns and financial metrics for each stock
     results = {}
-    risk_free_rate = 0.03  # Assuming an annual risk-free rate of 2%
-    for code in stock_codes:
-        # Mean returns and volatility (annualized)
-        mean_returns = daily_returns[code].mean() * 252
-        std_dev = daily_returns[code].std() * np.sqrt(252)
-        downside_risk = daily_returns[code][daily_returns[code] < 0].std() * np.sqrt(252)
-    
-        # Sortino Ratio
-        sortino_ratio = (mean_returns - risk_free_rate) / downside_risk if downside_risk != 0 else np.nan
-    
-        # Beta
-        covariance = np.cov(daily_returns[code], market_returns)[0][1]
-        beta = covariance / np.var(market_returns)
-    
-        # Alpha (using CAPM: Ri = Rf + beta * (Rm - Rf))
-        market_mean_return = market_returns.mean() * 252
-        alpha = mean_returns - (risk_free_rate + beta * (market_mean_return - risk_free_rate))
-    
-        # Information Ratio
-        tracking_error = np.std(daily_returns[code] - market_returns) * np.sqrt(252)
-        information_ratio = (mean_returns - market_mean_return) / tracking_error if tracking_error != 0 else np.nan
-    
-        # Maximum Drawdown
-        cum_returns = (1 + daily_returns[code]).cumprod()
-        peak = cum_returns.cummax()
-        drawdown = (cum_returns - peak) / peak
-        max_drawdown = drawdown.min()
-    
-        # Treynor Ratio
-        treynor_ratio = (mean_returns - risk_free_rate) / beta if beta != 0 else np.nan
-    
-        # Sharpe Ratio
-        sharpe_ratio = (mean_returns - risk_free_rate) / std_dev if std_dev != 0 else np.nan
-    
-        # Store in results
-        results = {
-            'Sortino Ratio': sortino_ratio,
-            'Beta': beta,
-            'Alpha': alpha,
-            'Information Ratio': information_ratio,
-            'Maximum Drawdown': max_drawdown,
-            'Treynor Ratio': treynor_ratio,
-            'Sharpe Ratio': sharpe_ratio
-        }
+    for code, data in stocks.items():
+        # Ensure data exists and calculate actual start date
+        if not data.empty:
+            actual_start_date = data.index.min().strftime('%Y-%m-%d') if data.index.min() > pd.to_datetime(start_date) else start_date
+            # Refresh market index data if start date adjustment is needed
+            if actual_start_date != start_date:
+                market_returns = fdr.DataReader(market_index, actual_start_date, end_date)['Close'].pct_change().dropna()
+                
+            daily_returns = data['Close'].pct_change().dropna()
 
-        return results
+            # Calculate financial metrics
+            mean_returns = daily_returns.mean() * 252
+            std_dev = daily_returns.std() * np.sqrt(252)
+            downside_risk = daily_returns[daily_returns < 0].std() * np.sqrt(252)
+            sortino_ratio = (mean_returns - 0.03) / downside_risk if downside_risk != 0 else np.nan
+            covariance = np.cov(daily_returns, market_returns)[0][1]
+            beta = covariance / np.var(market_returns)
+            market_mean_return = market_returns.mean() * 252
+            alpha = mean_returns - (0.03 + beta * (market_mean_return - 0.03))
+            tracking_error = np.std(daily_returns - market_returns) * np.sqrt(252)
+            information_ratio = (mean_returns - market_mean_return) / tracking_error if tracking_error != 0 else np.nan
+            cum_returns = (1 + daily_returns).cumprod()
+            peak = cum_returns.cummax()
+            drawdown = (cum_returns - peak) / peak
+            max_drawdown = drawdown.min()
+            treynor_ratio = (mean_returns - 0.03) / beta if beta != 0 else np.nan
+            sharpe_ratio = (mean_returns - 0.03) / std_dev if std_dev != 0 else np.nan
+
+            results = {
+                'Sortino Ratio': sortino_ratio,
+                'Beta': beta,
+                'Alpha': alpha,
+                'Information Ratio': information_ratio,
+                'Maximum Drawdown': max_drawdown,
+                'Treynor Ratio': treynor_ratio,
+                'Sharpe Ratio': sharpe_ratio
+            }
+
+    return results
+
 
 
 @app.get("/stocks/{country}")
