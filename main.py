@@ -186,7 +186,7 @@ async def get_stock_info(symbol: str, country: str):
     if not stock_info:
         raise HTTPException(status_code=404, detail="Stock not found")
 
-    financial_metrics = await  calculate_financial_metrics(symbol)
+    #financial_metrics = await  calculate_financial_metrics(symbol)
 
     recommendation_date = datetime.strptime(stock_info['recommendation_date'], "%Y-%m-%d")
     one_month_later = recommendation_date + timedelta(days=30)
@@ -258,7 +258,7 @@ async def get_stock_info(symbol: str, country: str):
         "ing": stock_info['ing'],
         "country": country,
         "price" : price_dict,
-         "financial_metrics": financial_metrics  # 추가된 부분
+        # "financial_metrics": financial_metrics  # 추가된 부분
     })
     
 async def update_stock_in_firestore(symbol: str, country: str, updated_info: Dict):
