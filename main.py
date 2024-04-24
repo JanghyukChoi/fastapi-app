@@ -90,6 +90,28 @@ async def success_rate():
 # 최상단에 글로벌 변수 선언
 results = {}
 
+async def fetch_financial_metrics_from_firestore(symbol: str, country: str):
+    """Firestore에서 금융 지표 데이터를 가져옵니다."""
+    collection_name = f'stockRecommendations{country.upper()}FinancialMetrics'
+    doc_ref = db.collection(collection_name).document(symbol)
+    doc = doc_ref.get()
+    if doc.exists:
+        return doc.to_dict()
+    else:
+        return None
+
+async def store_financial_metrics_to_firestore(symbol: str, country: str, metrics: dict):
+    """Firestore에 금융 지표 데이터를 저장합니다."""
+    collection_name = f'stockRecommendations{country.upper()}FinancialMetrics'
+    doc_ref = db.collection(collection_name).document(symbol)
+    doc_ref.set(metrics)
+
+async def calculate_and_store_financial_metrics(symbol: str, country: str):
+    """금융 지표를 계산하고 Firestore에 저장합니다."""
+    metrics = await calculate_financial_metrics(symbol)
+    await store_financial_metrics_to_firestore(symbol, country, metrics)
+    return metrics
+
 async def calculate_financial_metrics(symbol):
     # Define stock codes and date range
     stock_codes = [symbol]
@@ -185,9 +207,12 @@ async def get_stock_info(symbol: str, country: str):
     stock_info = await get_stock_from_firestore(symbol, country)
     if not stock_info:
         raise HTTPException(status_code=404, detail="Stock not found")
-
-    #financial_metrics = await  calculate_financial_metrics(symbol)
-
+    
+    # Firestore에서 금융 지표를 가져오기 시도
+    financial_metrics = await fetch_financial_metrics_from_firestore(symbol, country)
+    if not financial_metrics:
+        # 금융 지표가 없으면 계산하고 저장
+        financial_metrics = await calculate_and_store_financial_metrics(symbol, country)
     recommendation_date = datetime.strptime(stock_info['recommendation_date'], "%Y-%m-%d")
     one_month_later = recommendation_date + timedelta(days=30)
     today = datetime.today()
@@ -230,9 +255,6 @@ async def get_stock_info(symbol: str, country: str):
     current_close = price_data['Close'].iloc[-1]
     return_rate = ((current_close - recommendation_close) / recommendation_close) * 100
 
-    print('Current Close is : ' )
-    print(current_close)
-
     price_series   = pd.Series(price_data['Close'])
 
     price_series.index = price_series.index.strftime('%Y-%m-%d')
@@ -258,7 +280,7 @@ async def get_stock_info(symbol: str, country: str):
         "ing": stock_info['ing'],
         "country": country,
         "price" : price_dict,
-        # "financial_metrics": financial_metrics  # 추가된 부분
+        "financial_metrics": financial_metrics  # 추가된 부분
     })
     
 async def update_stock_in_firestore(symbol: str, country: str, updated_info: Dict):
